@@ -2,6 +2,7 @@ use rand::thread_rng;
 
 pub mod chain;
 pub mod otrsa;
+pub mod net;
 
 use otrsa::interlude::*;
 

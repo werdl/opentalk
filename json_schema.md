@@ -8,7 +8,7 @@
 {
     "timestamp": 1234567890,
     "round": "string", // the round that the message is associated with (the round is a hash of the genesis block)
-    "sender": "string", // the handle of the sender
+    "handle": "string", // the handle of the sender
     "ip": "string", // the IP address of the sender 
 }
 ```

@@ -20,3 +20,6 @@
 - Now they have an updated version of the round blockchain, their block is tacked on to the end and sent to all online peers
 - all online peers verify that all new blocks are correctly signed (all peers, at first connection, exchange public keys by sending a Pubkey block)
 - if Peer B is satisfied that all new blocks are correctly signed, they add the new block to their version of the round blockchain
+
+## todo
+- [ ] ensure all messages are encrypted after the handshake
