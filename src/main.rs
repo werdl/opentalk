@@ -2,12 +2,19 @@ use rand::thread_rng;
 
 pub mod chain;
 pub mod otrsa;
+pub mod otaes;
 pub mod net;
 
 use otrsa::interlude::*;
+use net::interlude::*;
+
+use tokio::runtime::Runtime;
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
+use tokio::io::{AsyncWriteExt, AsyncReadExt};
 
 fn main() {
-   
+
 }
 
 #[cfg(test)]
@@ -40,5 +47,39 @@ mod tests {
         let signature = private.rsa_sign(&message.bytes());
 
         assert!(public.rsa_verify(&message.bytes(), &signature));
+    }
+
+    #[cfg(test)]
+    mod net {
+        use super::*;
+        use tokio::runtime::Runtime;
+        use tokio::net::TcpListener;
+        use tokio::net::TcpStream;
+        use tokio::io::{AsyncWriteExt, AsyncReadExt};
+
+        #[test]
+        fn server() {
+            // wait for connections, then handshake
+            let rt = Runtime::new().unwrap();
+            rt.block_on(async {
+                let listener = TcpListener::bind("localhost:8080").await.unwrap();
+                let (stream, _) = listener.accept().await.unwrap();
+                let (key, _) = net::server_handshake(stream).await;
+
+                assert_eq!(key.len(), 16);
+            });
+        }
+
+        #[test]
+        fn client() {
+            // connect to server, then handshake
+            let rt = Runtime::new().unwrap();
+            rt.block_on(async {
+                let stream = TcpStream::connect("localhost:8080").await.unwrap();
+                let (key, _) = net::client_handshake(stream).await;
+
+                assert_eq!(key.len(), 16);
+            });
+        }
     }
 }

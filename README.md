@@ -22,4 +22,3 @@
 - if Peer B is satisfied that all new blocks are correctly signed, they add the new block to their version of the round blockchain
 
 ## todo
-- [ ] ensure all messages are encrypted after the handshake
