@@ -37,8 +37,14 @@ sequenceDiagram
 ### Initial PubKey block issued
 ```mermaid
 sequenceDiagram
-	    participant A as Peer A
-		participant B as Peer B
+	    participant A as Peer A (new member, who has been given B's IP)
+		participant B as Peer B (existing member)
 		A->>B: 
 		B->>A: Initial key exchange to facilitate encrypted communication
-	     
+		A->>B: SHA256 hash of the genesis block. This is the "round id", which acts as a password <br> and thus must be shared with any new participants via alternative means
+		B->>Terminate connection: Hash wrong
+		B->>A: Hash correct: issue ACK
+		A->>B: PubKey block
+		B->>B: store block in chain
+	    
+```
