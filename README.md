@@ -22,3 +22,23 @@
 - if Peer B is satisfied that all new blocks are correctly signed, they add the new block to their version of the round blockchain
 
 ## todo
+
+## protocol examples
+### Diffie-Hellman Key Exchange
+```mermaid
+sequenceDiagram
+	participant A as Peer A ('server')
+	participant B as Peer B ('client')
+	B->>A: B's public key (raw RSA format as a series of bits)
+	A->>B: A's public key in the same format
+	A->>A: compute and store shared secret (AES128 key)
+	B->>B: computer and store shared secret (AES128 key)
+```
+### Initial PubKey block issued
+```mermaid
+sequenceDiagram
+	    participant A as Peer A
+		participant B as Peer B
+		A->>B: 
+		B->>A: Initial key exchange to facilitate encrypted communication
+	     
