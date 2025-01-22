@@ -1,3 +1,4 @@
+
 # opentalk
 > a decentralized chat application
 
@@ -47,4 +48,26 @@ sequenceDiagram
 		A->>B: PubKey block
 		B->>B: store block in chain
 	    
+```
+### Send new message
+- the below exchange is replicated with all online peers
+```mermaid
+sequenceDiagram
+	participant A as Peer A (message sender)
+	participant B as Peer B (online round member)
+	A->>B: Message Block
+	B->>Terminate Connection: Message not correctly signed
+	B->>A: Message correctly signed: ACK
+```
+
+### Catch peer "up to speed"
+- all online peers should have this exchange
+```mermaid
+sequenceDiagram
+	participant A as Peer A (newly online member)
+	participant B as Peer B (online round member)
+	A->>B: ACK
+	B->>A: Updated version of chain
+	A->>Terminate Connection: Chain contains badly signed blocks
+	A->>B: Chain is signed correctly: ACK
 ```
