@@ -71,3 +71,6 @@ sequenceDiagram
 	A->>Terminate Connection: Chain contains badly signed blocks
 	A->>B: Chain is signed correctly: ACK
 ```
+
+## todo
+- implement rounds

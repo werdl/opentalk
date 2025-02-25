@@ -1,11 +1,12 @@
 use std::any::Any;
 
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde_json::json;
 use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::task;
 
-use crate::chain::Block;
+use crate::chain::{BasicData, Block, BlockTypes};
 use crate::otaes::AesKey;
 
 use openssl::dh::Dh;
@@ -99,12 +100,16 @@ pub fn encrypt_message(message: String, key: &[u8; 16]) -> Vec<u8> {
 }
 
 
-pub async fn listen(host: String) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn listen(host: String, keypair: (RsaPublicKey, RsaPrivateKey), sender: String) -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(host).await.unwrap();
 
     loop {
         // Accept an incoming connection
         let (mut socket, _) = listener.accept().await?;
+
+        // Clone the sender variable
+        let sender_clone = sender.clone();
+        let keypair_clone = keypair.clone();
 
         // Spawn a task to handle the connection
         task::spawn(async move {
@@ -129,15 +134,16 @@ pub async fn listen(host: String) -> Result<(), Box<dyn std::error::Error>> {
                         // now, decrypt the message using openssl aes-128-cbc
                         let decrypted = decrypt_message(&buf[..n], &key);
                         
-
                         // parse the message into a block
                         let block: Result<Block, serde_json::Error> = serde_json::from_str(&decrypted);
 
                         let result = match block {
-                            Ok(block) => handle(block),
+                            Ok(block) => handle(block, sender_clone.clone(), keypair_clone.clone()),
                             Err(e) => {
                                 eprintln!("Failed to parse block: {}", e);
-                                Some(Block::new_ping())
+                                Some(Block::new_ping(
+                                    BasicData::new("0".to_string(), sender_clone.clone(), &keypair_clone.1.clone())
+                                ))
                             }
                         };
 
@@ -161,25 +167,26 @@ pub async fn listen(host: String) -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn handle(block: Block) -> Option<Block> {
-    match block {
-        Block::PubKey(pubkey) => {
-            println!("Received pubkey: {:?}", pubkey);
-            None
-        }
-        Block::Message(message) => {
-            println!("Received message: {:?}", message);
-            None
-        }
-        Block::Ping(_) => {
+fn handle(block: Block, sender: String, keypair: (RsaPublicKey, RsaPrivateKey)) -> Option<Block> {
+    let metadata = BasicData::new("0".to_string(), sender, &keypair.1.clone());
+    match block.inner {
+        BlockTypes::Ping(_) => {
             println!("Received ping");
-            None
+            Some(Block::new_ack(metadata))
         }
-        Block::Blocks(blocks) => {
-            println!("Received blocks: {:?}", blocks);
-            None
+        BlockTypes::PubKey(pubkey) => {
+            println!("Received public key");
+            Some(Block::new_ack(metadata))
         }
-        Block::Ack(_) => {
+        BlockTypes::Message(message) => {
+            println!("Received message");
+            Some(Block::new_ack(metadata))
+        }
+        BlockTypes::Blocks(blocks) => {
+            println!("Received blocks");
+            Some(Block::new_ack(metadata))
+        }
+        BlockTypes::Ack(_) => {
             println!("Received ack");
             None
         }

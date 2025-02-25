@@ -2,16 +2,12 @@
 use rsa::{traits::PaddingScheme, Pkcs1v15Encrypt, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use rand::rngs::OsRng;
 
-pub mod interlude {
-    pub use super::{Bytes, HexDigest, PrivKey, PubKey};
-}
-
-pub trait PubKey {
+pub trait PubKeyMethods {
     fn rsa_encrypt(&self, message: String) -> Vec<u8>;
     fn rsa_verify(&self, original_message: &[u8], signature: &[u8]) -> bool;
 }
 
-pub trait PrivKey {
+pub trait PrivKeyMethods {
     fn rsa_decrypt(&self, encrypted_message: &[u8]) -> Vec<u8>;
     fn rsa_sign(&self, message: &[u8]) -> Vec<u8>;
 }
@@ -20,11 +16,12 @@ pub trait HexDigest {
     fn hex(&self) -> String;
 }
 
-pub trait Bytes {
-    fn bytes(&self) -> Vec<u8>;
+pub trait RsaBytes {
+    fn get_bytes(&self) -> Vec<u8>;
 }
 
-impl PubKey for RsaPublicKey {
+
+impl PubKeyMethods for RsaPublicKey {
     fn rsa_encrypt(&self, message: String) -> Vec<u8> {
         let mut rng = OsRng;
         self.encrypt(&mut rng, Pkcs1v15Encrypt, message.as_bytes()).unwrap()
@@ -35,7 +32,7 @@ impl PubKey for RsaPublicKey {
     }
 }
 
-impl PrivKey for RsaPrivateKey {
+impl PrivKeyMethods for RsaPrivateKey {
     fn rsa_decrypt(&self, encrypted_message: &[u8]) -> Vec<u8> {
         self.decrypt(Pkcs1v15Encrypt, encrypted_message).unwrap()
     }
@@ -51,9 +48,9 @@ impl HexDigest for Vec<u8> {
     }
 }
 
-impl Bytes for String {
-    fn bytes(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+impl RsaBytes for String {
+    fn get_bytes(&self) -> Vec<u8> {
+        hex::decode(self).unwrap()
     }
 }
 

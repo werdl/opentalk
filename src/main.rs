@@ -5,7 +5,7 @@ pub mod otrsa;
 pub mod otaes;
 pub mod net;
 
-use otrsa::interlude::*;
+use otrsa::*;
 use net::interlude::*;
 
 use tokio::runtime::Runtime;
@@ -14,7 +14,26 @@ use tokio::net::TcpStream;
 use tokio::io::{AsyncWriteExt, AsyncReadExt};
 
 fn main() {
+    // if the first argument is "server", run the server
+    if std::env::args().nth(1).unwrap() == "server" {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let listener = TcpListener::bind("localhost:8080").await.unwrap();
+            let (stream, _) = listener.accept().await.unwrap();
+            let (key, _) = net::server_handshake(stream).await;
 
+            println!("{:?}", key);
+        });
+    } else {
+        // if the first argument is "client", run the client
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let stream = TcpStream::connect("localhost:8080").await.unwrap();
+            let (key, _) = net::client_handshake(stream).await;
+
+            println!("{:?}", key);
+        });
+    }
 }
 
 #[cfg(test)]
@@ -44,9 +63,9 @@ mod tests {
 
         let message = "Hello, World!".to_string();
 
-        let signature = private.rsa_sign(&message.bytes());
+        let signature = private.rsa_sign(&message.get_bytes());
 
-        assert!(public.rsa_verify(&message.bytes(), &signature));
+        assert!(public.rsa_verify(&message.get_bytes(), &signature));
     }
 
     #[cfg(test)]
@@ -66,6 +85,8 @@ mod tests {
                 let (stream, _) = listener.accept().await.unwrap();
                 let (key, _) = net::server_handshake(stream).await;
 
+                println!("{:?}", key);
+
                 assert_eq!(key.len(), 16);
             });
         }
@@ -78,8 +99,40 @@ mod tests {
                 let stream = TcpStream::connect("localhost:8080").await.unwrap();
                 let (key, _) = net::client_handshake(stream).await;
 
+                println!("{:?}", key);
+
                 assert_eq!(key.len(), 16);
             });
+        }
+    }
+
+    #[cfg(test)]
+    mod chain {
+        use crate::chain::{BasicData, Block};
+
+        use super::*;
+        use otrsa::generate_keypair;
+
+        #[test]
+        fn basic_data() {
+            let rng = &mut thread_rng();
+            let (private, public) = generate_keypair(rng, 2048);
+
+            let basic_data = BasicData::new("round".to_string(), "handle".to_string(), &private);
+
+            assert!(basic_data.verify(&public));
+        }
+
+        #[test]
+        fn new_pubkey() {
+            let rng = &mut thread_rng();
+            let (private, public) = generate_keypair(rng, 2048);
+
+            let basic_data = BasicData::new("round".to_string(), "handle".to_string(), &private);
+
+            let block = Block::new_pubkey(public, basic_data);
+
+            assert!(block.verify(vec![]));
         }
     }
 }
