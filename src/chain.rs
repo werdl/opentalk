@@ -30,9 +30,9 @@ pub struct PubKey {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
-    message: String,
+    message: Vec<u8>,
 
-    signed_message: String,
+    signed_message: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -76,11 +76,11 @@ impl Block {
     pub fn new_message(message: String, priv_key: RsaPrivateKey, metadata: BasicData) -> Self {
 
         // sign the message
-        let signed_message = priv_key.rsa_sign(message.as_bytes()).hex();
+        let signed_message = priv_key.rsa_sign(message.as_bytes());
 
         Block::new(BlockTypes::Message(Message {
-            message,
-            signed_message,
+            message: message.as_bytes().to_vec(),
+            signed_message: signed_message,
         }), metadata)
     }
 
@@ -130,6 +130,16 @@ impl BasicData {
 
 impl Block {
     pub fn verify(&self, chain: Vec<Block>) -> bool {
+        if chain.len() == 0 {
+            match &self.inner {
+                BlockTypes::PubKey(pkey) => {
+                    return self.metadata.verify(&rsa::RsaPublicKey::from_pkcs1_pem(&pkey.pubkey).unwrap());
+                }
+                _ => {
+                    return false;
+                }
+            }
+        }
         // if the block is a pubkey, we only verify that a. it is the first message from that user and b. the signature is valid by the pubkey it gives us
 
         // now find the public key for the sender
@@ -194,13 +204,41 @@ impl Block {
         // now verify the message
         match &self.inner {
             BlockTypes::Message(message) => {
-                let signed_message = message.signed_message.get_bytes();
-
-                our_pubkey.rsa_verify(&message.message.get_bytes(), &signed_message)
+                our_pubkey.rsa_verify(&message.message, &message.signed_message)
             }
 
             // for all other block types, we don't need to verify anything else
             _ => true,
         }
     }
+}
+
+pub trait ValidChain {
+    /// verify that `other` is a valid continuation of `self`
+    fn check_validity(&self, other: Self) -> bool;
+}
+
+impl ValidChain for Vec<Block> {
+    fn check_validity(&self, other: Self) -> bool {
+        // if the other chain is empty, it is valid
+        if other.len() == 0 {
+            return true;
+        }
+
+        // if the other chain is shorter than the current chain, it is invalid
+        if other.len() < self.len() {
+            return false;
+        }
+
+        // now go through the chain and verify each block. If any block is invalid, the chain is invalid
+        for (i, block) in other.iter().enumerate() {
+            println!("verifying block {}", i);
+            if !block.verify(other.clone().into_iter().take(i).collect()) {
+                return false;
+            }
+        }
+
+        true
+    }
+    
 }

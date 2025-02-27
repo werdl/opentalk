@@ -106,9 +106,27 @@ mod tests {
         }
     }
 
+    mod keys {
+        use crate::chain::{BasicData, Block};
+
+        use super::*;
+        use otrsa::generate_keypair;
+        #[test]
+        fn new_pubkey() {
+            let rng = &mut thread_rng();
+            let (private, public) = generate_keypair(rng, 2048);
+
+            let basic_data = BasicData::new("round".to_string(), "handle".to_string(), &private);
+
+            let block = Block::new_pubkey(public, basic_data);
+
+            assert!(block.verify(vec![]));
+        }
+    }
+
     #[cfg(test)]
     mod chain {
-        use crate::chain::{BasicData, Block};
+        use crate::chain::{BasicData, Block, ValidChain};
 
         use super::*;
         use otrsa::generate_keypair;
@@ -124,15 +142,25 @@ mod tests {
         }
 
         #[test]
-        fn new_pubkey() {
+        fn chain_continuation() {
             let rng = &mut thread_rng();
+
             let (private, public) = generate_keypair(rng, 2048);
+
+            let (private2, public2) = generate_keypair(rng, 2048);
 
             let basic_data = BasicData::new("round".to_string(), "handle".to_string(), &private);
 
-            let block = Block::new_pubkey(public, basic_data);
+            let block = Block::new_pubkey(public.clone(), basic_data.clone());
 
-            assert!(block.verify(vec![]));
+            let block2 = Block::new_message("hello".to_string(), private, basic_data.clone());
+
+            let block3 = Block::new_ack(basic_data.clone());
+
+            let block4 = Block::new_pubkey(public2, basic_data.clone());
+
+
+            assert!(vec![block.clone()].check_validity(vec![block, block2, block3, block4]))
         }
     }
 }
