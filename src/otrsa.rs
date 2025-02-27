@@ -12,14 +12,6 @@ pub trait PrivKeyMethods {
     fn rsa_sign(&self, message: &[u8]) -> Vec<u8>;
 }
 
-pub trait HexDigest {
-    fn hex(&self) -> String;
-}
-
-pub trait RsaBytes {
-    fn get_bytes(&self) -> Vec<u8>;
-}
-
 
 impl PubKeyMethods for RsaPublicKey {
     fn rsa_encrypt(&self, message: String) -> Vec<u8> {

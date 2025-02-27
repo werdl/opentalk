@@ -69,6 +69,7 @@ pub async fn server_handshake(mut stream: tokio::net::TcpStream) -> ([u8; 16], t
     (aes_key, stream)
 }
 
+/// Decrypt a message using AES-128 CBC with the provided key
 pub fn decrypt_message(message: &[u8], key: &[u8; 16]) -> String {
     /* 
         message is a json like so:
@@ -88,6 +89,7 @@ pub fn decrypt_message(message: &[u8], key: &[u8; 16]) -> String {
     String::from_utf8(decrypted).unwrap()
 }
 
+/// Encrypt a message using AES-128 CBC with the provided key
 pub fn encrypt_message(message: String, key: &[u8; 16]) -> Vec<u8> {
     let (encrypted, iv) = key.aes_encrypt(message);
 
@@ -99,13 +101,15 @@ pub fn encrypt_message(message: String, key: &[u8; 16]) -> Vec<u8> {
     json.to_string().as_bytes().to_vec()
 }
 
-
+/// Listen for incoming connections and handle them
 pub async fn listen(host: String, keypair: (RsaPublicKey, RsaPrivateKey), sender: String) -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(host).await.unwrap();
 
     loop {
         // Accept an incoming connection
+        #[allow(unused_mut)]
         let (mut socket, _) = listener.accept().await?;
+        #[warn(unused_mut)]
 
         // Clone the sender variable
         let sender_clone = sender.clone();
@@ -179,7 +183,7 @@ fn handle(block: Block, sender: String, keypair: (RsaPublicKey, RsaPrivateKey)) 
             Some(Block::new_ack(metadata))
         }
         BlockTypes::Message(message) => {
-            println!("Received message");
+            println!("Received message: {}", String::from_utf8_lossy(&message.message));
             Some(Block::new_ack(metadata))
         }
         BlockTypes::Blocks(blocks) => {

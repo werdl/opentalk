@@ -1,38 +1,38 @@
 use rsa::{pkcs1::{DecodeRsaPublicKey, EncodeRsaPublicKey}, RsaPrivateKey, RsaPublicKey};
 use serde::{Serialize, Deserialize};
 
-use crate::{otrsa::{PrivKeyMethods, PubKeyMethods}, HexDigest, RsaBytes};
+use crate::otrsa::{PrivKeyMethods, PubKeyMethods};
 
 /// Basic data that is included in every block
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicData {
     /// Unix timestamp
-    timestamp: u64,
+    pub timestamp: u64,
 
     /// the round that the message is associated with (short hash, e.g. "abc123")
-    round: String,
+    pub round: String,
 
     /// the handle of the sender
-    handle: String,
+    pub handle: String,
 
     /// `timestamp` signed with the sender's private key
-    signed_timestamp: Vec<u8>,
+    pub signed_timestamp: Vec<u8>,
 }
 
 /// Block specifying the public key of a user. If one of these is recieved, it should be accepted only if 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PubKey {
-    handle: String,
+    pub handle: String,
 
     /// hex-encoded RSA public key
-    pubkey: String,
+    pub pubkey: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
-    message: Vec<u8>,
+    pub message: Vec<u8>,
 
-    signed_message: Vec<u8>,
+    pub signed_message: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -57,12 +57,15 @@ pub struct Block {
 }
 
 impl Block {
+    /// create a new block
     pub fn new(block: BlockTypes, metadata: BasicData) -> Self {
         Block {
             inner: block,
             metadata,
         }
     }
+
+    /// create a new public key block
     pub fn new_pubkey(pubkey: RsaPublicKey, metadata: BasicData) -> Self {
         // get pkcs1 public key
         let rsa_pubkey = pubkey.to_pkcs1_pem(rsa::pkcs8::LineEnding::LF).unwrap();
@@ -73,6 +76,7 @@ impl Block {
         }), metadata)
     }
 
+    /// create a new message block
     pub fn new_message(message: String, priv_key: RsaPrivateKey, metadata: BasicData) -> Self {
 
         // sign the message
@@ -84,22 +88,27 @@ impl Block {
         }), metadata)
     }
 
+    /// create a new ping block
     pub fn new_ping(metadata: BasicData) -> Self {
         Block::new(BlockTypes::Ping(Ping {}), metadata)
-    }
+    }  
 
+    /// create a new blocks block (a block containing multiple blocks, e.g. for a chain of messages)
     pub fn new_blocks(blocks: Vec<BlockTypes>, metadata: BasicData) -> Self {
         Block::new(BlockTypes::Blocks(blocks), metadata)
     }
 
+    /// create a new ack block
     pub fn new_ack(metadata: BasicData) -> Self {
         Block::new(BlockTypes::Ack(Ack {}), metadata)
     }
 
+    /// convert the block to a JSON string
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(&self)
     }
 
+    /// create a block from a JSON string
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
@@ -129,6 +138,7 @@ impl BasicData {
 }
 
 impl Block {
+    /// verify that given a valid chain `chain`, this block is valid
     pub fn verify(&self, chain: Vec<Block>) -> bool {
         if chain.len() == 0 {
             match &self.inner {
@@ -219,6 +229,7 @@ pub trait ValidChain {
 }
 
 impl ValidChain for Vec<Block> {
+    /// verify that `other` is a valid continuation of `self` (`other` must contain `self` as a prefix)
     fn check_validity(&self, other: Self) -> bool {
         // if the other chain is empty, it is valid
         if other.len() == 0 {
