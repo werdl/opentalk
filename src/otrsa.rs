@@ -1,5 +1,5 @@
 /// an abstraction over the RSA crate
-use rsa::{traits::PaddingScheme, Pkcs1v15Encrypt, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
+use rsa::{Pkcs1v15Encrypt, Pkcs1v15Sign, RsaPrivateKey, RsaPublicKey};
 use rand::rngs::OsRng;
 
 pub trait PubKeyMethods {

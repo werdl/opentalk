@@ -1,7 +1,7 @@
-use std::any::Any;
-
+use base64ct::{Base64, Encoding};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use serde_json::json;
+use sha2::{Sha256, Digest};
 use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::task;
@@ -10,8 +10,6 @@ use crate::chain::{BasicData, Block, BlockTypes};
 use crate::otaes::AesKey;
 
 use openssl::dh::Dh;
-use sha2::{Sha256, Digest};
-use rand::Rng;
 
 /// Perform the client's handshake and return an AES128 key
 pub async fn client_handshake(mut stream: tokio::net::TcpStream) -> ([u8; 16], tokio::net::TcpStream) {
@@ -179,15 +177,19 @@ fn handle(block: Block, sender: String, keypair: (RsaPublicKey, RsaPrivateKey)) 
             Some(Block::new_ack(metadata))
         }
         BlockTypes::PubKey(pubkey) => {
-            println!("Received public key");
+            println!("Received public key (hash {}) from {}", Base64::encode_string(&Sha256::digest(&pubkey.pubkey)), block.metadata.handle);
             Some(Block::new_ack(metadata))
         }
         BlockTypes::Message(message) => {
             println!("Received message: {}", String::from_utf8_lossy(&message.message));
             Some(Block::new_ack(metadata))
+
         }
         BlockTypes::Blocks(blocks) => {
             println!("Received blocks");
+            for block in blocks {
+                println!("Block: {}", block.to_json().unwrap());
+            }
             Some(Block::new_ack(metadata))
         }
         BlockTypes::Ack(_) => {

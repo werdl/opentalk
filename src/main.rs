@@ -1,17 +1,20 @@
-use rand::thread_rng;
-
 pub mod chain;
 pub mod otrsa;
 pub mod otaes;
 pub mod net;
 
-use otrsa::*;
-use net::interlude::*;
-
 use tokio::runtime::Runtime;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
+
+// used in test submodules
+#[allow(unused_imports)]
+use rand::thread_rng;
+#[allow(unused_imports)]
+use otrsa::*;
+#[allow(unused_imports)]
+use net::*;
+
 
 fn main() {
     // if the first argument is "server", run the server
@@ -74,7 +77,6 @@ mod tests {
         use tokio::runtime::Runtime;
         use tokio::net::TcpListener;
         use tokio::net::TcpStream;
-        use tokio::io::{AsyncWriteExt, AsyncReadExt};
 
         #[test]
         fn handshake() {
@@ -143,7 +145,7 @@ mod tests {
 
             let (private, public) = generate_keypair(rng, 2048);
 
-            let (private2, public2) = generate_keypair(rng, 2048);
+            let (_private2, public2) = generate_keypair(rng, 2048);
 
             let basic_data = BasicData::new("round".to_string(), "handle".to_string(), &private);
 

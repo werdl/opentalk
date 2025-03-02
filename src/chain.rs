@@ -114,6 +114,18 @@ impl Block {
     }
 }
 
+impl BlockTypes {
+    /// convert the block to a JSON string
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(&self)
+    }
+
+    /// create a block from a JSON string
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json)
+    }
+}
+
 impl BasicData {
     /// create a new BasicData object, given the name of the relevant round, the handle of the user sending it and the user's private key (for signing the timestamp, isn't stored in the object!)
     pub fn new(round: String, handle: String, priv_key: &rsa::RsaPrivateKey) -> Self {
