@@ -34,18 +34,6 @@ impl PrivKeyMethods for RsaPrivateKey {
     }
 }
 
-impl HexDigest for Vec<u8> {
-    fn hex(&self) -> String {
-        hex::encode(self)
-    }
-}
-
-impl RsaBytes for String {
-    fn get_bytes(&self) -> Vec<u8> {
-        hex::decode(self).unwrap()
-    }
-}
-
 pub fn generate_keypair(rng: &mut rand::rngs::ThreadRng, bits: usize) -> (RsaPrivateKey, RsaPublicKey) {
     let private_key = RsaPrivateKey::new(rng, bits).unwrap();
     let public_key = private_key.to_public_key();
