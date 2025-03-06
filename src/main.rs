@@ -3,10 +3,13 @@ pub mod otrsa;
 pub mod otaes;
 pub mod net;
 
-use tokio::runtime::Runtime;
-use tokio::net::TcpListener;
-use tokio::net::TcpStream;
+use std::io::BufRead;
+use std::io::Read;
+use std::net::TcpListener;
+use std::net::TcpStream;
 
+use chain::BasicData;
+use chain::Block;
 // used in test submodules
 #[allow(unused_imports)]
 use rand::thread_rng;
@@ -15,28 +18,42 @@ use otrsa::*;
 #[allow(unused_imports)]
 use net::*;
 
-
 fn main() {
-    // if the first argument is "server", run the server
-    if std::env::args().nth(1).unwrap() == "server" {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let listener = TcpListener::bind("localhost:8080").await.unwrap();
-            let (stream, _) = listener.accept().await.unwrap();
-            let (key, _) = net::server_handshake(stream).await;
+    // our keys
+    let rng = &mut thread_rng();
+    let (private, public) = otrsa::generate_keypair(rng, 2048);
 
-            println!("{:?}", key);
-        });
-    } else {
-        // if the first argument is "client", run the client
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async {
-            let stream = TcpStream::connect("localhost:8080").await.unwrap();
-            let (key, _) = net::client_handshake(stream).await;
+    let (tx, rx) = std::sync::mpsc::channel();
 
-            println!("{:?}", key);
-        });
+    let private_clone = private.clone();
+    std::thread::spawn(move || {
+        listen("localhost:8080".to_string(), (public, private_clone), "test_server".to_string(), "ot_test.json", rx);
+    });
+
+    // now lets talk to the others
+    std::thread::spawn(move || {
+        let stream = TcpStream::connect("localhost:8080").unwrap();
+        let (key, stream) = client_handshake(stream);
+        loop {}
     }
+
+    );
+
+    println!("Listening on localhost:8080");
+
+
+
+    // everytime the user prints a newline, send a Message block
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line.unwrap();
+        println!("{}", line);
+        
+        let message = Block::new_message(line, private.clone(), BasicData::new("round".to_string(), "test_server".to_string(), &private));
+
+        tx.send(message.to_json().unwrap()).unwrap();
+    }
+
 }
 
 #[cfg(test)]
@@ -75,8 +92,8 @@ mod tests {
     mod net {
         use super::*;
         use tokio::runtime::Runtime;
-        use tokio::net::TcpListener;
-        use tokio::net::TcpStream;
+        use std::net::TcpListener;
+        use std::net::TcpStream;
 
         #[test]
         fn handshake() {
@@ -84,8 +101,8 @@ mod tests {
             let rt = Runtime::new().unwrap();
 
             rt.spawn(async {
-                let stream = TcpStream::connect("localhost:8080").await.unwrap();
-                let (key, _) = net::client_handshake(stream).await;
+                let stream = TcpStream::connect("localhost:8080").unwrap();
+                let (key, _) = net::client_handshake(stream);
 
                 println!("{:?}", key);
 
@@ -93,9 +110,9 @@ mod tests {
             });
 
             rt.block_on(async {
-                let listener = TcpListener::bind("localhost:8080").await.unwrap();
-                let (stream, _) = listener.accept().await.unwrap();
-                let (key, _) = net::server_handshake(stream).await;
+                let listener = TcpListener::bind("localhost:8080").unwrap();
+                let (stream, _) = listener.accept().unwrap();
+                let (key, _) = net::server_handshake(stream);
 
                 println!("{:?}", key);
 

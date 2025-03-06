@@ -46,8 +46,10 @@ pub enum BlockTypes {
     PubKey(PubKey),
     Message(Message),
     Ping(Ping),
-    Blocks(Vec<BlockTypes>),
+    Blocks(Vec<Block>),
     Ack(Ack),
+    /// note that the BasicData embedded here is that of the failed `Blocks` block, ours is in the metadata field
+    FailedBlocks(BasicData,)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -94,13 +96,18 @@ impl Block {
     }  
 
     /// create a new blocks block (a block containing multiple blocks, e.g. for a chain of messages)
-    pub fn new_blocks(blocks: Vec<BlockTypes>, metadata: BasicData) -> Self {
+    pub fn new_blocks(blocks: Vec<Block>, metadata: BasicData) -> Self {
         Block::new(BlockTypes::Blocks(blocks), metadata)
     }
 
     /// create a new ack block
     pub fn new_ack(metadata: BasicData) -> Self {
         Block::new(BlockTypes::Ack(Ack {}), metadata)
+    }
+
+    /// create a new failed blocks block
+    pub fn new_failed_blocks(metadata_of_failed: BasicData, our_metadata: BasicData) -> Self {
+        Block::new(BlockTypes::FailedBlocks(metadata_of_failed), our_metadata)
     }
 
     /// convert the block to a JSON string
@@ -242,6 +249,7 @@ pub trait ValidChain {
 
 impl ValidChain for Vec<Block> {
     /// verify that `other` is a valid continuation of `self` (`other` must contain `self` as a prefix)
+    /// note that this function assumes that self is a valid chain
     fn check_validity(&self, other: Self) -> bool {
         // if the other chain is empty, it is valid
         if other.len() == 0 {
@@ -264,4 +272,26 @@ impl ValidChain for Vec<Block> {
         true
     }
     
+}
+
+pub trait BlockPersist {
+    /// save the block to a file
+    fn save(&self, path: &str) -> std::io::Result<()>;
+
+    /// load the block from a file
+    fn load(path: &str) -> std::io::Result<Self> where Self: Sized;
+}
+
+impl BlockPersist for Vec<Block> {
+    /// save the block to a file
+    fn save(&self, path: &str) -> std::io::Result<()> {
+        let json = serde_json::to_string(&self).unwrap();
+        std::fs::write(path, json)
+    }
+
+    /// load the block from a file
+    fn load(path: &str) -> std::io::Result<Self> {
+        let json = std::fs::read_to_string(path)?;
+        serde_json::from_str(&json).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    }
 }
