@@ -120,6 +120,7 @@ pub fn listen(
     let rejected_users = Arc::new(Mutex::new(Vec::new()));
     let rx = Arc::new(Mutex::new(rx));
 
+    // TODO: MAKE THIS WORK
     for stream in listener.incoming() {
         let stream = stream?;
         let sender_clone = sender.clone();
