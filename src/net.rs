@@ -169,6 +169,7 @@ fn looper(
     thread::spawn(move || loop {
         let message = rx_clone.lock().unwrap().recv().unwrap();
         println!("Sending message: {}", message);
+        // we get here but the message is not sent
         to_send_queue_clone.lock().unwrap().push(message);
     });
 
