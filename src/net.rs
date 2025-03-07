@@ -147,6 +147,7 @@ pub fn listen(
     Ok(())
 }
 
+/// Handle the main loop of a connection. This function will listen for incoming messages, decrypt them, handle them, and send a response. It will also listen for messages on the rx channel and send them to the peer. This function will be ran by the server and client
 fn looper(
     mut stream: TcpStream,
     key: [u8; 16],
@@ -243,6 +244,38 @@ fn looper(
     }
 }
 
+/// manage a connection to a peer where they are the 'server' and we are the 'client'
+pub fn client(
+    stream: TcpStream,
+    keypair: (RsaPublicKey, RsaPrivateKey),
+    sender: String,
+    chain_path: &str,
+    rx: std::sync::mpsc::Receiver<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let chain = Arc::new(Mutex::new(
+        <Vec<Block>>::load(chain_path).unwrap_or(Vec::new()),
+    ));
+    let rejected_users = Arc::new(Mutex::new(Vec::new()));
+    let rx = Arc::new(Mutex::new(rx));
+
+    let (key, stream) = client_handshake(stream);
+
+    looper(
+        stream,
+        key,
+        sender,
+        keypair,
+        chain,
+        &mut rejected_users.lock().unwrap(),
+        rx,
+    );
+
+    Ok(())
+}
+
+
+
+/// Handle a block and return a response block
 fn handle(
     block: Block,
     sender: String,
