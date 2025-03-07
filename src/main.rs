@@ -30,14 +30,6 @@ fn main() {
         listen("localhost:8080".to_string(), (public, private_clone), "test_server".to_string(), "ot_test.json", rx);
     });
 
-    // now lets talk to the others
-    std::thread::spawn(move || {
-        let stream = TcpStream::connect("localhost:8080").unwrap();
-        let (key, stream) = client_handshake(stream);
-        loop {}
-    }
-
-    );
 
     println!("Listening on localhost:8080");
 

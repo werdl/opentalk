@@ -120,7 +120,6 @@ pub fn listen(
     let rejected_users = Arc::new(Mutex::new(Vec::new()));
     let rx = Arc::new(Mutex::new(rx));
 
-    // TODO: MAKE THIS WORK
     for stream in listener.incoming() {
         let stream = stream?;
         let sender_clone = sender.clone();
@@ -129,72 +128,119 @@ pub fn listen(
         let rejected_users_clone = Arc::clone(&rejected_users);
         // let rx_clone = Arc::clone(&rx_mutex);
         let rx_clone = Arc::clone(&rx);
-        let mut stream_clone = stream.try_clone()?;
 
         let (key, mut stream) = server_handshake(stream);
 
         thread::spawn(move || {
-            loop {
-                let message = rx_clone.lock().unwrap().recv().unwrap();
-                stream_clone.write_all(
-                    &encrypt_message(message, &key)
-                ).unwrap();
-            }
-        });
-
-        thread::spawn(move || {
-            let mut buf = [0; 1024];
-
-            loop {
-                let result = stream.read(&mut buf);
-
-                match result {
-                    Ok(0) => {
-                        // Connection was closed
-                        println!("Connection closed");
-                        break;
-                    }
-                    Ok(n) => {
-                        // Print the received message
-                        let msg = String::from_utf8_lossy(&buf[..n]);
-                        println!("Received message: {}", msg);
-
-                        // now, decrypt the message using openssl aes-128-cbc
-                        let decrypted = decrypt_message(&buf[..n], &key);
-
-                        // parse the message into a block
-                        let block = serde_json::from_str(&decrypted);
-
-                        let result = match block {
-                            Ok(block) => handle(block, sender_clone.clone(), keypair_clone.clone(), &mut chain_clone.lock().unwrap(), &mut rejected_users_clone.lock().unwrap()),
-                            Err(e) => {
-                                eprintln!("Failed to parse block: {}", e);
-                                Some(Block::new_ping(
-                                    BasicData::new("0".to_string(), sender_clone.clone(), &keypair_clone.1.clone())
-                                ))
-                            }
-                        };
-
-                        if result.is_none() {
-                            break;
-                        }
-
-                        // now, encrypt the result and send it back
-                        let result = result.unwrap();
-                        let result = encrypt_message(result.to_json().unwrap(), &key);
-
-                        stream.write_all(&result as &[u8]).unwrap();
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to read from socket: {}", e);
-                        break;
-                    }
-                }
-            }
+            looper(
+                stream,
+                key,
+                sender_clone,
+                keypair_clone,
+                chain_clone,
+                &mut rejected_users_clone.lock().unwrap(),
+                rx_clone,
+            );
         });
     }
 
     Ok(())
+}
+
+fn looper(
+    mut stream: TcpStream,
+    key: [u8; 16],
+    sender: String,
+    keypair: (RsaPublicKey, RsaPrivateKey),
+    chain: Arc<Mutex<Vec<Block>>>,
+    rejected_users: &mut Vec<String>,
+    rx: Arc<Mutex<std::sync::mpsc::Receiver<String>>>,
+) {
+    let mut buf = [0; 1024];
+    let mut message = Vec::new();
+
+    let mut to_send_queue = Arc::new(Mutex::new(Vec::new()));
+
+    // listen for message on the rx channel
+    let rx_clone = Arc::clone(&rx);
+    let to_send_queue_clone = Arc::clone(&to_send_queue);
+
+    thread::spawn(move || loop {
+        let message = rx_clone.lock().unwrap().recv().unwrap();
+        println!("Sending message: {}", message);
+        to_send_queue_clone.lock().unwrap().push(message);
+    });
+
+    loop {
+        // check if there are any messages to send
+        let to_send = to_send_queue.lock().unwrap();
+        for message in to_send.iter() {
+            stream.write_all(&encrypt_message(message.clone(), &key)).unwrap();
+        }
+
+        // clear the queue
+        to_send_queue.lock().unwrap().clear();
+
+        let result: Result<usize, std::io::Error> = stream.read(&mut buf);
+
+        match result {
+            Ok(0) => {
+                // Connection was closed
+                println!("Connection closed");
+                break;
+            }
+            Ok(1024) => {
+                // Buffer is full
+                message.extend_from_slice(&buf);
+                buf = [0; 1024];
+            }
+            Ok(n) => {
+                // Print the received message
+                message.extend_from_slice(&buf[..n]);
+
+                let msg = String::from_utf8_lossy(&message);
+                println!("Received message: {}", msg);
+
+                // now, decrypt the message using openssl aes-128-cbc
+                let decrypted = decrypt_message(&message, &key);
+
+                // parse the message into a block
+                let block = serde_json::from_str(&decrypted);
+
+                let result = match block {
+                    Ok(block) => handle(
+                        block,
+                        sender.clone(),
+                        keypair.clone(),
+                        &mut chain.lock().unwrap(),
+                        rejected_users,
+                    ),
+                    Err(e) => {
+                        eprintln!("Failed to parse block: {}", e);
+                        Some(Block::new_ping(BasicData::new(
+                            "0".to_string(),
+                            sender.clone(),
+                            &keypair.1.clone(),
+                        )))
+                    }
+                };
+
+                if result.is_none() {
+                    break;
+                }
+
+                // now, encrypt the result and send it back
+                let result = result.unwrap();
+                let result = encrypt_message(result.to_json().unwrap(), &key);
+
+                stream.write_all(&result as &[u8]).unwrap();
+            }
+            Err(e) => {
+                eprintln!("Failed to read from socket: {}", e);
+                break;
+            }
+        }
+    }
 }
 
 fn handle(
